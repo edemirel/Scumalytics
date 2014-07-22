@@ -1,10 +1,30 @@
 from bs4 import BeautifulSoup
 import urllib2
 
-# from class_definitions import Player
+from class_definitions import Player
 
 BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players'
+
+
+def pos_to_num(poslist):
+    num_pos = []
+    for pos in poslist:
+        if pos == "Center":
+            num_pos.append(5)
+        elif pos == "Power Forward":
+            num_pos.append(4)
+        elif pos == "Small Forward":
+            num_pos.append(3)
+        elif pos == "Shooting Guard":
+            num_pos.append(2)
+        elif pos == "Point Guard":
+            num_pos.append(1)
+        else:
+            pass
+            # Never should hit here honestly
+
+    return num_pos
 
 
 def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
@@ -121,7 +141,7 @@ def parse(datatype, soup):
 
 
 def parse_playerlist(soup):
-    # Parse Part
+    """ Returns a playerlist as URLs from a given playerlist soup"""
     # Search for all "a" tags, get href attributes
     table_container = soup.find("table", id="players").find("tbody")
 
@@ -131,27 +151,86 @@ def parse_playerlist(soup):
     for i, rows in enumerate(table_container.find_all("tr")):
         t = rows.find_all("td")
         playerlist.append(t[0].a["href"].encode("utf8"))
-        # tempplayer = Player(name=t[0].a.text.encode("utf8"), url="".join([BR_ROOT, t[0].a["href"]]),
-        #                     firstyear=t[1].text.encode("utf8"), lastyear=t[2].text.encode("utf8"),
-        #                     pos=t[3].text.encode("utf8").split("-"), height=int(t[4].text.
-        #                     encode("utf8").split("-")[0]) * 12 + int(t[4].text.encode("utf8").
-        #                     split("-")[1]), weight=int(t[5].text.encode("utf8")),
-        #                     birthday=t[6].text.encode("utf8"), college=t[7].text.encode("utf8"))
+
     return playerlist
 
 
 def parse_player(soup):
-    # table_container = soup.find("table", id="players").find("tbody")
-    pass
+
+    infobox = soup.find("div", id="info_box")
+
+    # DataPoint
+    img_link = infobox.find("div", attrs={'class': "person_image"})
+    if img_link is None:
+        img_link = ''
+    else:
+        img_link = infobox.find("div", attrs={'class': "person_image"}).find("img")["src"]
+
+    playerdata = infobox.find("div", attrs={'class': "person_image_offset"})
+    if playerdata is None:
+        playerdata = infobox
+
+    # DataPoint
+    player_name = playerdata.h1.text
+
+    for p in playerdata.find_all("span"):
+        if p.text == "Position:":
+            temp_text = repr(p.next_sibling)
+            begin = temp_text.find(" ")+1
+            end = temp_text.find("\\")
+
+            # DataPoint
+            pos = pos_to_num(temp_text[begin:end].split(" and "))
+
+        elif p.text == "Shoots:":
+            temp_text = repr(p.next_sibling)
+            begin = temp_text.find(" ")+1
+            end = temp_text.rfind("\\")
+
+            # DataPoint
+            shoots = temp_text[begin:end]
+
+        elif p.text == "Height:":
+            temp_text = repr(p.next_sibling)
+            begin = temp_text.find(" ")+1
+            end = temp_text.find("\\")
+
+            # DataPoint
+            height = int(temp_text[begin:end].split("-")[0]) * 12 + int(
+                temp_text[begin:end].split("-")[0])
+
+        elif p.text == "Weight:":
+            temp_text = repr(p.next_sibling)
+            begin = temp_text.find(" ")+1
+            end = temp_text.find(" lbs")
+
+            # DataPoint
+            weight = int(temp_text[begin:end])
+
+        elif p.has_attr("id"):
+            if p['id'] == "necro-birth":
+                # DataPoint
+                birthday = p['data-birth']
+
+        # CONTINUE HERE
+
+        else:
+            pass
+
+    tempplayer = Player(name=player_name, img_url=img_link, pos=pos, shoots=shoots, height=height, weight=weight
+                        birthday=birthday)
+    print player_name
+    return tempplayer
 
 
-def parse_player_season():
+def parse_player_season(soup):
+    # osmanabimevdemi
     pass
 
 
 if __name__ == "__main__":
     plist = fetch_parse("playerlist", playerlist_lastname="a")
-    print plist[1]
-    pl1 = fetch_parse("player", player=plist[0])
 
-    print pl1
+    pl1 = fetch_parse("player", player=plist[15])
+
+    # print pl1
