@@ -29,9 +29,9 @@ def pos_to_num(poslist):
 
 def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
     """ fetch_parse calls fetch and parse functions consecutively
-        datatype can be one of three, playerlist, player, player_season
+        datatype can be one of three; playerlist, player, player_season
 
-        * playerlist gets a list of players w/ given surname
+        * playerlist gets a list of players w/ given first letter of surname
         * player gets the basic player info and season data
         * player season gets all the games played for the player in a given season
 
@@ -88,7 +88,7 @@ def fetch_playerlist(playerlist_lastname=None):
     # Fetch Part
     fetch_url = "/".join([BR_PLAYERS, playerlist_lastname, ""])
 
-    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html5lib')
+    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
 
     return soup
 
@@ -108,7 +108,7 @@ def fetch_player(player=None):
     else:
         fetch_url = "/".join([BR_PLAYERS, player[0], ".".join([player, "html"])])
 
-    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html5lib')
+    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
 
     return soup
 
@@ -148,8 +148,8 @@ def parse_playerlist(soup):
     # num_of_columns = len(table_container.find("tr").find_all("td"))
     playerlist = []
 
-    for i, rows in enumerate(table_container.find_all("tr")):
-        t = rows.find_all("td")
+    for row in table_container.find_all("tr"):
+        t = row.find_all("td")
         playerlist.append(t[0].a["href"].encode("utf8"))
 
     return playerlist
@@ -172,6 +172,7 @@ def parse_player(soup):
 
     # DataPoint
     player_name = playerdata.h1.text
+    college=''
 
     for p in playerdata.find_all("span"):
         if p.text == "Position:":
@@ -222,13 +223,18 @@ def parse_player(soup):
 
                 print birthday, birthcity, birthcountry
 
+        elif p.text == "College:":
+            college =  p.next_sibling.next_sibling.text
+            print college
+
+
         # CONTINUE HERE
 
         else:
             pass
 
     tempplayer = Player(name=player_name, img_url=img_link, pos=pos, shoots=shoots, height=height, weight=weight,
-                        birthday=birthday, birthcity=birthcity, birthcountry=birthcountry)
+                        birthday=birthday, birthcity=birthcity, birthcountry=birthcountr, college=college)
     print player_name
     return tempplayer
 
@@ -239,8 +245,7 @@ def parse_player_season(soup):
 
 
 if __name__ == "__main__":
-    plist = fetch_parse("playerlist", playerlist_lastname="a")
+    plist = fetch_parse(datatype="playerlist", playerlist_lastname="a")
 
-    pl1 = fetch_parse("player", player=plist[21])
-
+    pl1 = fetch_parse(datatype="player", player=plist[17])
     # print pl1
