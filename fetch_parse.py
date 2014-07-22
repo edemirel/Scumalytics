@@ -212,13 +212,23 @@ def parse_player(soup):
                 # DataPoint
                 birthday = p['data-birth']
 
+                temp_text = repr(p.next_sibling)
+                temp_text = temp_text.lstrip("u\' in ")
+                end = temp_text.find(",")
+
+                birthcity = temp_text[:end]
+
+                birthcountry = p.next_sibling.next_sibling.text
+
+                print birthday, birthcity, birthcountry
+
         # CONTINUE HERE
 
         else:
             pass
 
-    tempplayer = Player(name=player_name, img_url=img_link, pos=pos, shoots=shoots, height=height, weight=weight
-                        birthday=birthday)
+    tempplayer = Player(name=player_name, img_url=img_link, pos=pos, shoots=shoots, height=height, weight=weight,
+                        birthday=birthday, birthcity=birthcity, birthcountry=birthcountry)
     print player_name
     return tempplayer
 
@@ -231,6 +241,6 @@ def parse_player_season(soup):
 if __name__ == "__main__":
     plist = fetch_parse("playerlist", playerlist_lastname="a")
 
-    pl1 = fetch_parse("player", player=plist[15])
+    pl1 = fetch_parse("player", player=plist[21])
 
     # print pl1
