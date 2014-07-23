@@ -1,9 +1,8 @@
 from bs4 import BeautifulSoup
 import urllib2
 import re
-import inspect
 
-from class_definitions import Player
+from definitions import Player
 
 BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players'
@@ -28,6 +27,26 @@ def pos_to_num(poslist):
             # Never should hit here honestly
 
     return num_pos
+
+
+def num_to_pos(poslist):
+    pos_num = []
+    for pos in poslist:
+        if pos == 5:
+            pos_num.append("Center")
+        elif pos == 4:
+            pos_num.append("Power Forward")
+        elif pos == 3:
+            pos_num.append("Small Forward")
+        elif pos == 2:
+            pos_num.append("Shooting Guard")
+        elif pos == 1:
+            pos_num.append("Point Guard")
+        else:
+            pass
+            # Never should hit here honestly
+
+    return pos_num
 
 
 def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
@@ -165,7 +184,7 @@ def parse_player(soup, url=None):
                   'height': None, 'weight': None, 'birthday': None, 'birthcity': None,
                   'birthcountry': None, 'college': None, 'draftcity': None,
                   'draftteam': None, 'draftround': None, 'draftroundpick': None,
-                  'draftpos': None, 'page_url': url, 'season': None}
+                  'draftpos': None, 'page_url': url, 'seasons': []}
 
     infobox = soup.find("div", id="info_box")
 
@@ -173,9 +192,7 @@ def parse_player(soup, url=None):
 
     # DataPoint
     img_link = infobox.find("div", attrs={'class': "person_image"})
-    if img_link is None:
-        tempplayer['img_url'] = ''
-    else:
+    if img_link is not None:
         tempplayer['img_url'] = infobox.find("div", attrs={'class': "person_image"}).find("img")["src"]
 
     playerdata = infobox.find("div", attrs={'class': "person_image_offset"})
@@ -184,7 +201,6 @@ def parse_player(soup, url=None):
 
     # DataPoint
     tempplayer['name'] = playerdata.h1.text.encode("utf8")
-    print tempplayer['name']
 
     for p in playerdata.find_all("span"):
         if p.text == "Position:":
@@ -236,7 +252,6 @@ def parse_player(soup, url=None):
         elif p.text == "College:":
             # DataPoint
             tempplayer['college'] = p.next_sibling.next_sibling.text.encode("utf8")
-            print tempplayer['college']
 
         elif p.text == "Draft:":
             draftinfo = p.next_sibling.next_sibling
@@ -265,7 +280,7 @@ def parse_player(soup, url=None):
         else:
             seasonlist.append(t[0].a["href"].split("/")[5].encode("utf8"))
 
-    tempplayer['season'] = seasonlist
+    tempplayer['seasons'] = seasonlist
 
     tmp = Player(**tempplayer)
 
@@ -281,7 +296,5 @@ if __name__ == "__main__":
 
     pl1 = fetch_parse(datatype="player", player=plist[0])
 
-    attrs = vars(pl1)
-
-    for key, value in attrs.iteritems():
-        print key, value
+    print pl1.name
+    print num_to_pos(pl1.pos)
