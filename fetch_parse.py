@@ -161,21 +161,11 @@ def parse_playerlist(soup, yearfrom=1996):
 def parse_player(soup, url=None):
 
     # INIT DATAPOINTS AS BLANK, THIS IS TO PREVENT ERRORS IF THE PARSE DOESNT HAPPEN
-    player_name = None
-    img_link = None
-    pos = None
-    shoots = None
-    height = None
-    weight = None
-    birthday = None
-    birthcity = None
-    birthcountry = None
-    college = None
-    draftcity = None
-    draftteam = None
-    draftround = None
-    draftroundpick = None
-    draftpos = None
+    tempplayer = {'name': None, 'img_url': None, 'pos': None, 'shoots': None,
+                  'height': None, 'weight': None, 'birthday': None, 'birthcity': None,
+                  'birthcountry': None, 'college': None, 'draftcity': None,
+                  'draftteam': None, 'draftround': None, 'draftroundpick': None,
+                  'draftpos': None, 'page_url': url, 'season': None}
 
     infobox = soup.find("div", id="info_box")
 
@@ -184,17 +174,17 @@ def parse_player(soup, url=None):
     # DataPoint
     img_link = infobox.find("div", attrs={'class': "person_image"})
     if img_link is None:
-        img_link = ''
+        tempplayer['img_url'] = ''
     else:
-        img_link = infobox.find("div", attrs={'class': "person_image"}).find("img")["src"]
+        tempplayer['img_url'] = infobox.find("div", attrs={'class': "person_image"}).find("img")["src"]
 
     playerdata = infobox.find("div", attrs={'class': "person_image_offset"})
     if playerdata is None:
         playerdata = infobox
 
     # DataPoint
-    player_name = playerdata.h1.text
-    print player_name
+    tempplayer['name'] = playerdata.h1.text.encode("utf8")
+    print tempplayer['name']
 
     for p in playerdata.find_all("span"):
         if p.text == "Position:":
@@ -203,7 +193,7 @@ def parse_player(soup, url=None):
             end = temp_text.find("\\")
 
             # DataPoint
-            pos = pos_to_num(temp_text[begin:end].split(" and "))
+            tempplayer['pos'] = pos_to_num(temp_text[begin:end].split(" and "))
 
         elif p.text == "Shoots:":
             temp_text = repr(p.next_sibling)
@@ -211,7 +201,7 @@ def parse_player(soup, url=None):
             end = temp_text.rfind("\\")
 
             # DataPoint
-            shoots = temp_text[begin:end]
+            tempplayer['shoots'] = temp_text[begin:end]
 
         elif p.text == "Height:":
             temp_text = repr(p.next_sibling)
@@ -219,7 +209,7 @@ def parse_player(soup, url=None):
             end = temp_text.find("\\")
 
             # DataPoint
-            height = int(temp_text[begin:end].split("-")[0]) * 12 + int(
+            tempplayer['height'] = int(temp_text[begin:end].split("-")[0]) * 12 + int(
                 temp_text[begin:end].split("-")[0])
 
         elif p.text == "Weight:":
@@ -228,37 +218,38 @@ def parse_player(soup, url=None):
             end = temp_text.find(" lbs")
 
             # DataPoint
-            weight = int(temp_text[begin:end])
+            tempplayer['weight'] = int(temp_text[begin:end])
 
         elif p.has_attr("id"):
             if p['id'] == "necro-birth":
                 # DataPoint
-                birthday = p['data-birth']
+                tempplayer['birthday'] = p['data-birth'].encode("utf8")
 
                 temp_text = repr(p.next_sibling)
                 temp_text = temp_text.lstrip("u\' in ")
                 end = temp_text.find(",")
 
-                birthcity = temp_text[:end]
+                tempplayer['birthcity'] = temp_text[:end].encode("utf8")
 
-                birthcountry = p.next_sibling.next_sibling.text
+                tempplayer['birthcountry'] = p.next_sibling.next_sibling.text.encode("utf8")
 
         elif p.text == "College:":
-            college = p.next_sibling.next_sibling.text
-            print college
+            # DataPoint
+            tempplayer['college'] = p.next_sibling.next_sibling.text.encode("utf8")
+            print tempplayer['college']
 
         elif p.text == "Draft:":
             draftinfo = p.next_sibling.next_sibling
             # DataPoint
-            draftcity = draftinfo["href"].split("/")[2]
-            draftteam = draftinfo.text
+            tempplayer['draftcity'] = draftinfo["href"].split("/")[2].encode("utf8")
+            tempplayer['draftteam'] = draftinfo.text.encode("utf8")
 
             hit = re.match(draftregex, draftinfo.next_sibling)
 
             # DataPoint
-            draftround = int(hit.group(1))
-            draftroundpick = int(hit.group(2))
-            draftpos = int(hit.group(3))
+            tempplayer['draftround'] = int(hit.group(1))
+            tempplayer['draftroundpick'] = int(hit.group(2))
+            tempplayer['draftpos'] = int(hit.group(3))
             break
 
         else:
@@ -274,25 +265,23 @@ def parse_player(soup, url=None):
         else:
             seasonlist.append(t[0].a["href"].split("/")[5].encode("utf8"))
 
-    tempplayer = Player(name=player_name, page_url=url, img_url=img_link, pos=pos, shoots=shoots,
-                        height=height, weight=weight, birthday=birthday, birthcity=birthcity,
-                        birthcountry=birthcountry, college=college, draftcity=draftcity,
-                        draftteam=draftteam, draftround=draftround, draftroundpick=draftroundpick,
-                        draftpos=draftpos, seasons=seasonlist)
+    tempplayer['season'] = seasonlist
 
-    return tempplayer
+    tmp = Player(**tempplayer)
+
+    return tmp
 
 
 def parse_player_season(soup):
     # osmanabimevdemi
     pass
 
-
 if __name__ == "__main__":
     plist = fetch_parse(datatype="playerlist", playerlist_lastname="a")
 
     pl1 = fetch_parse(datatype="player", player=plist[0])
 
-    # attrs = vars(pl1)
+    attrs = vars(pl1)
 
-    # print ', '.join("%s: %s" % item for item in attrs.items())
+    for key, value in attrs.iteritems():
+        print key, value
