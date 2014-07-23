@@ -1,5 +1,7 @@
 from bs4 import BeautifulSoup
 import urllib2
+import re
+import inspect
 
 from class_definitions import Player
 
@@ -53,10 +55,9 @@ def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
     # Checking if the fetchtype passed is proper
     if datatype not in defined_datatypes:
         raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
-        return None
 
-    soup = fetch(datatype, playerlist_lastname=playerlist_lastname, player=player, season=season)
-    r_arg = parse(datatype, soup)
+    fetch_result = fetch(datatype, playerlist_lastname=playerlist_lastname, player=player, season=season)
+    r_arg = parse(datatype, soup=fetch_result[0], url=fetch_result[1])
 
     return r_arg
 
@@ -80,7 +81,8 @@ def fetch(fetchtype, playerlist_lastname=None, player=None, season=None):
         return fetch_player_season(player=player, season=season)
 
     else:
-        pass
+        raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
+
         # should never hit here normally
 
 
@@ -90,7 +92,7 @@ def fetch_playerlist(playerlist_lastname=None):
 
     soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
 
-    return soup
+    return soup, fetch_url
 
 
 def fetch_player(player=None):
@@ -110,7 +112,7 @@ def fetch_player(player=None):
 
     soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
 
-    return soup
+    return soup, fetch_url
 
 
 def fetch_player_season(player=None, season=None):
@@ -118,7 +120,7 @@ def fetch_player_season(player=None, season=None):
     pass
 
 
-def parse(datatype, soup):
+def parse(datatype, soup, url=None):
     """ parse gets the soup and returns data in the specified level
         fetchtype can be one of three, playerlist, player, player_season
 
@@ -130,17 +132,16 @@ def parse(datatype, soup):
         return parse_playerlist(soup)
 
     elif datatype == defined_datatypes[1]:
-        return parse_player(soup)
+        return parse_player(soup, url)
 
     elif datatype == defined_datatypes[2]:
-        return fetch_player_season(soup)
+        return fetch_player_season(soup, url)
 
     else:
-        pass
-        # should never hit here normally
+        raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
 
 
-def parse_playerlist(soup):
+def parse_playerlist(soup, yearfrom=1996):
     """ Returns a playerlist as URLs from a given playerlist soup"""
     # Search for all "a" tags, get href attributes
     table_container = soup.find("table", id="players").find("tbody")
@@ -150,14 +151,34 @@ def parse_playerlist(soup):
 
     for row in table_container.find_all("tr"):
         t = row.find_all("td")
-        playerlist.append(t[0].a["href"].encode("utf8"))
+        if int(t[1].text) >= yearfrom:
+            playerlist.append(t[0].a["href"].encode("utf8"))
 
     return playerlist
 
 
-def parse_player(soup):
+def parse_player(soup, url=None):
+
+    # INIT DATAPOINTS AS BLANK
+    player_name = None
+    img_link = None
+    pos = None
+    shoots = None
+    height = None
+    weight = None
+    birthday = None
+    birthcity = None
+    birthcountry = None
+    college = None
+    draftcity = None
+    draftteam = None
+    draftround = None
+    draftroundpick = None
+    draftpos = None
 
     infobox = soup.find("div", id="info_box")
+
+    draftregex = re.compile(r", (\d).+?(\d{1,3}).+?(\d{1,3}).+")
 
     # DataPoint
     img_link = infobox.find("div", attrs={'class': "person_image"})
@@ -172,7 +193,7 @@ def parse_player(soup):
 
     # DataPoint
     player_name = playerdata.h1.text
-    college=''
+    print player_name
 
     for p in playerdata.find_all("span"):
         if p.text == "Position:":
@@ -221,21 +242,31 @@ def parse_player(soup):
 
                 birthcountry = p.next_sibling.next_sibling.text
 
-                print birthday, birthcity, birthcountry
-
         elif p.text == "College:":
-            college =  p.next_sibling.next_sibling.text
+            college = p.next_sibling.next_sibling.text
             print college
 
+        elif p.text == "Draft:":
+            draftinfo = p.next_sibling.next_sibling
+            # DataPoint
+            draftcity = draftinfo["href"].split("/")[2]
+            draftteam = draftinfo.text
 
-        # CONTINUE HERE
+            hit = re.match(draftregex, draftinfo.next_sibling)
+
+            # DataPoint
+            draftround = int(hit.group(1))
+            draftroundpick = int(hit.group(2))
+            draftpos = int(hit.group(3))
 
         else:
             pass
 
-    tempplayer = Player(name=player_name, img_url=img_link, pos=pos, shoots=shoots, height=height, weight=weight,
-                        birthday=birthday, birthcity=birthcity, birthcountry=birthcountr, college=college)
-    print player_name
+    tempplayer = Player(name=player_name, page_url=url, img_url=img_link, pos=pos, shoots=shoots, height=height,
+                        weight=weight, birthday=birthday, birthcity=birthcity, birthcountry=birthcountry,
+                        college=college, draftcity=draftcity, draftteam=draftteam, draftround=draftround,
+                        draftroundpick=draftroundpick, draftpos=draftpos)
+
     return tempplayer
 
 
@@ -247,5 +278,8 @@ def parse_player_season(soup):
 if __name__ == "__main__":
     plist = fetch_parse(datatype="playerlist", playerlist_lastname="a")
 
-    pl1 = fetch_parse(datatype="player", player=plist[17])
-    # print pl1
+    pl1 = fetch_parse(datatype="player", player=plist[11])
+
+    attrs = vars(pl1)
+
+    print ', '.join("%s: %s" % item for item in attrs.items())
