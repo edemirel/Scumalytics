@@ -7,6 +7,7 @@ from class_definitions import Player
 
 BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players'
+BR_SEASONS = 'http://www.basketball-reference.com/players/{0}/{1}/gamelog/{2}'
 
 
 def pos_to_num(poslist):
@@ -159,7 +160,7 @@ def parse_playerlist(soup, yearfrom=1996):
 
 def parse_player(soup, url=None):
 
-    # INIT DATAPOINTS AS BLANK
+    # INIT DATAPOINTS AS BLANK, THIS IS TO PREVENT ERRORS IF THE PARSE DOESNT HAPPEN
     player_name = None
     img_link = None
     pos = None
@@ -258,14 +259,26 @@ def parse_player(soup, url=None):
             draftround = int(hit.group(1))
             draftroundpick = int(hit.group(2))
             draftpos = int(hit.group(3))
+            break
 
         else:
             pass
 
-    tempplayer = Player(name=player_name, page_url=url, img_url=img_link, pos=pos, shoots=shoots, height=height,
-                        weight=weight, birthday=birthday, birthcity=birthcity, birthcountry=birthcountry,
-                        college=college, draftcity=draftcity, draftteam=draftteam, draftround=draftround,
-                        draftroundpick=draftroundpick, draftpos=draftpos)
+    # Seasonal Data
+    seasontable = soup.find("table", id="totals").find("tbody")
+    seasonlist = []
+    for row in seasontable.find_all("tr"):
+        t = row.find_all("td")
+        if len(t) <= 3:
+            pass
+        else:
+            seasonlist.append(t[0].a["href"].split("/")[5].encode("utf8"))
+
+    tempplayer = Player(name=player_name, page_url=url, img_url=img_link, pos=pos, shoots=shoots,
+                        height=height, weight=weight, birthday=birthday, birthcity=birthcity,
+                        birthcountry=birthcountry, college=college, draftcity=draftcity,
+                        draftteam=draftteam, draftround=draftround, draftroundpick=draftroundpick,
+                        draftpos=draftpos, seasons=seasonlist)
 
     return tempplayer
 
@@ -278,8 +291,8 @@ def parse_player_season(soup):
 if __name__ == "__main__":
     plist = fetch_parse(datatype="playerlist", playerlist_lastname="a")
 
-    pl1 = fetch_parse(datatype="player", player=plist[11])
+    pl1 = fetch_parse(datatype="player", player=plist[0])
 
-    attrs = vars(pl1)
+    # attrs = vars(pl1)
 
-    print ', '.join("%s: %s" % item for item in attrs.items())
+    # print ', '.join("%s: %s" % item for item in attrs.items())
