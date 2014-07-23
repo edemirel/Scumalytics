@@ -8,6 +8,8 @@ BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players'
 BR_SEASONS = 'http://www.basketball-reference.com/players/{0}/{1}/gamelog/{2}'
 
+parser = 'html.parser'
+
 
 def pos_to_num(poslist):
     num_pos = []
@@ -106,16 +108,16 @@ def fetch(fetchtype, playerlist_lastname=None, player=None, season=None):
         # should never hit here normally
 
 
-def fetch_playerlist(playerlist_lastname=None):
+def fetch_playerlist(playerlist_lastname):
     # Fetch Part
     fetch_url = "/".join([BR_PLAYERS, playerlist_lastname, ""])
 
-    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
+    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), parser)
 
     return soup, fetch_url
 
 
-def fetch_player(player=None):
+def fetch_player(player):
 
     # Checking if direct url or playercode is passed
     # Case /players/a/abdelal01.html
@@ -126,18 +128,43 @@ def fetch_player(player=None):
     elif len(player.split(".")) == 2:
         fetch_url = "/".join([BR_PLAYERS, player[0], player])
 
+    # Case http://www.basketball-reference.com/players/a/abdulta01.html
+    elif len(player.split("/")) == 6:
+        fetch_url = player
+
     # Case abdelal01
     else:
         fetch_url = "/".join([BR_PLAYERS, player[0], ".".join([player, "html"])])
 
-    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), 'html.parser')
+    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), parser)
 
     return soup, fetch_url
 
 
-def fetch_player_season(player=None, season=None):
-    # fetch_url = "/".join([BR_PLAYERS, player[0], player, season])
-    pass
+def fetch_player_season(player, season):
+
+    # Checking if direct url or playercode is passed
+    # Case /players/a/abdelal01.html
+    if len(player.split("/")) == 4:
+        player_tag = player.split("/")[3].split(".")[0]
+
+    # Case abdelal01.html
+    elif len(player.split(".")) == 2:
+        player_tag = player.split(".")[0]
+
+    # Case http://www.basketball-reference.com/players/a/abdulta01.html
+    elif len(player.split("/")) == 6:
+        player_tag = player.split("/")[5].split(".")[0]
+
+    # Case abdelal01
+    else:
+        player_tag = player
+
+    fetch_url = BR_SEASONS.format(player_tag[0], player_tag, season)
+
+    soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), parser)
+
+    return soup, fetch_url
 
 
 def parse(datatype, soup, url=None):
@@ -296,5 +323,6 @@ if __name__ == "__main__":
 
     pl1 = fetch_parse(datatype="player", player=plist[0])
 
-    print pl1.name
-    print num_to_pos(pl1.pos)
+    pl_s = fetch("player_season", player=pl1.page_url, season=pl1.seasons[0])
+
+    print pl_s
