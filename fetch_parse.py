@@ -1,10 +1,10 @@
 # [SublimeLinter flake8-max-line-length:135]
 from bs4 import BeautifulSoup
-from time import time as epoch_time
+import multiprocessing
 import urllib2
 import re
 import copy
-
+import time
 
 from definitions import Player
 
@@ -15,6 +15,11 @@ BR_SEASONS = 'http://www.basketball-reference.com/players/{0}/{1}/gamelog/{2}'
 parser = 'html.parser'
 
 start_year = 1982
+
+epoch_time = time.time
+glob_plist = []
+glob_player = []
+glob_player_season = []
 
 
 def pos_to_num(poslist):
@@ -278,9 +283,12 @@ def parse_player(soup, url=None):
                 temp_text = temp_text.lstrip("u\' in ")
                 end = temp_text.find(",")
 
-                tempplayer['birthcity'] = temp_text[:end].encode("utf8")
-
-                tempplayer['birthcountry'] = p.next_sibling.next_sibling.text.encode("utf8")
+                try:
+                    tempplayer['birthcity'] = temp_text[:end].encode("utf8")
+                    tempplayer['birthcountry'] = p.next_sibling.next_sibling.text.encode("utf8")
+                except AttributeError:
+                    tempplayer['birthcity'] = "Unknown"
+                    tempplayer['birthcountry'] = "Unknown"
 
         elif p.text == "College:":
             # DataPoint
@@ -417,11 +425,11 @@ def parse_player_season(soup, url=None):
 
                 player_season_list.append(temp_game)
 
-    return(player_season_list)
+    return player_season_list
 
 
-def main():
-    asciilist = range(97, 120)
+def all_main():
+    asciilist = range(98, 120)
     for i in range(121, 123):
         asciilist.append(i)
 
@@ -445,5 +453,63 @@ def main():
                 print gen_text.format(season, this_player.name, (end_time-start_time)/60)
 
 
+def plist_job_creator(ln, start_time):
+    this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
+    end_time = epoch_time()
+    print "Finished PList for {0}. Running for {2:.2f} min".format(ln, (end_time-start_time)/60)
+    glob_plist.append(this_player_list)
+    return this_player_list
+
+
+def player_job_creator(pl, start_time):
+    this_player = fetch_parse(datatype="player", player=pl)
+    end_time = epoch_time()
+    print "Finished parsing Player {0}. Running for {2:.2f} min".format(this_player.name, (end_time-start_time)/60)
+    return this_player
+
+
+def player_season_job_creator(player, start_time):
+    gamelist = []
+    for season in player.seasons:
+        gamelist.append(fetch_parse(datatype="player_season", player=player.page_url, season=season))
+    end_time = epoch_time()
+    gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
+    print gen_text.format(season, player.name, (end_time-start_time)/60)
+
+    return gamelist
+
+
+def mp_main():
+    asciilist = range(97, 120)
+    for i in range(121, 123):
+        asciilist.append(i)
+
+    ln_list = []
+    start_time = epoch_time()
+
+    for i in asciilist:
+        ln_list.append(str(unichr(i)))
+
+    print "starting mp"
+    pool = multiprocessing.Pool()
+
+    for i in ln_list:
+        pool.apply_async(plist_job_creator, args=(i, start_time))
+
+    print "ending mp"
+
+    pool.close()
+    pool.join()
+
+    print glob_plist
+
+
+def test_main():
+    this_player = fetch_parse(datatype="player", player="bagarda01")
+    print this_player.birthcountry
+
+    # gen_text.format(season, this_player.name, (end_time-start_time)/60)
+
+
 if __name__ == "__main__":
-    main()
+    mp_main()
