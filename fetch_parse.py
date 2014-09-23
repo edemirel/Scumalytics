@@ -1,6 +1,10 @@
+# [SublimeLinter flake8-max-line-length:135]
 from bs4 import BeautifulSoup
+from time import time as epoch_time
 import urllib2
 import re
+import copy
+
 
 from definitions import Player
 
@@ -9,6 +13,8 @@ BR_PLAYERS = 'http://www.basketball-reference.com/players'
 BR_SEASONS = 'http://www.basketball-reference.com/players/{0}/{1}/gamelog/{2}'
 
 parser = 'html.parser'
+
+start_year = 1982
 
 
 def pos_to_num(poslist):
@@ -109,6 +115,7 @@ def fetch(fetchtype, playerlist_lastname=None, player=None, season=None):
 
 
 def fetch_playerlist(playerlist_lastname):
+
     # Fetch Part
     fetch_url = "/".join([BR_PLAYERS, playerlist_lastname, ""])
 
@@ -118,7 +125,6 @@ def fetch_playerlist(playerlist_lastname):
 
 
 def fetch_player(player):
-
     # Checking if direct url or playercode is passed
     # Case /players/a/abdelal01.html
     if len(player.split("/")) == 4:
@@ -182,13 +188,13 @@ def parse(datatype, soup, url=None):
         return parse_player(soup, url)
 
     elif datatype == defined_datatypes[2]:
-        return fetch_player_season(soup, url)
+        return parse_player_season(soup, url)
 
     else:
         raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
 
 
-def parse_playerlist(soup, yearfrom=1996):
+def parse_playerlist(soup, yearfrom=start_year):
     """ Returns a playerlist as URLs from a given playerlist soup"""
     # Search for all "a" tags, get href attributes
     table_container = soup.find("table", id="players").find("tbody")
@@ -314,15 +320,130 @@ def parse_player(soup, url=None):
     return tmp
 
 
-def parse_player_season(soup):
-    # osmanabimevdemi
-    pass
+def int_transform_except_none(value):
+    try:
+        r = int(value)
+    except ValueError:
+        r = None
+    return r
+
+
+def parse_player_season(soup, url=None):
+    player_season_list = []
+    temp_game_org = {'game_num': None, 'player_game_num': None, 'game_date': None, 'age_year': None,
+                     'team': None, 'is_away': None, 'opponent': None, 'started': None, 'is_playoff': None,
+                     'age_days': None,  'is_win': None, 'point_differential': None,
+                     'minutes_played': None, 'field_goals_made': None, 'field_goals_att': None, 'three_made': None,
+                     'three_att': None, 'free_throw_made': None, 'free_throw_att': None, 'offensive_rebound': None,
+                     'defensive_rebound': None, 'total_rebound': None, 'assist': None, 'steal': None,
+                     'block': None, 'turnover': None, 'personal_fouls': None, 'points': None}
+
+    season_gametable = soup.find("table", id="pgl_basic").find("tbody")
+    temp_game_org['is_playoff'] = 0
+
+    for row in season_gametable.find_all("tr"):
+        temp_game = copy.deepcopy(temp_game_org)
+        # Check if it's a replicate of the header row or DNP/Inactive Row
+        # DNP Rows has 9
+
+        min_active_game_rows = 10
+        all_columns_in_row = row.find_all("td")
+        if not len(all_columns_in_row) > min_active_game_rows:
+            pass
+
+        else:
+            for i, col in enumerate(all_columns_in_row):
+
+                if i == 0:
+                    temp_game['game_num'] = int_transform_except_none(col.text)
+
+                elif i == 1:
+                    temp_game['player_game_num'] = int_transform_except_none(col.text)
+                elif i == 2:
+                    temp_game['game_date'] = col.text.encode("utf8")
+                elif i == 3:
+                    temp_game['age_year'] = int_transform_except_none(col.text.split("-")[0])
+                    temp_game['age_days'] = int_transform_except_none(col.text.split("-")[1])
+                elif i == 4:
+                    temp_game['team'] = col.text.encode("utf8")
+                elif i == 5:
+                    if col.text == "@":
+                        temp_game['is_away'] = 1
+                    else:
+                        temp_game['is_away'] = 0
+                elif i == 6:
+                    temp_game['opponent'] = col.text.encode("utf8")
+                elif i == 7:
+                    temp_text = col.text
+                    if temp_text.split(" ")[0] == "W":
+                        temp_game['is_win'] = 1
+                    else:
+                        temp_game['is_win'] = 0
+                    temp_game['point_differential'] = int_transform_except_none(temp_text.split(" ")[1].split("(")[1].split(")")[0])
+                elif i == 8:
+                    temp_game['started'] = int_transform_except_none(col.text)
+                elif i == 9:
+                    temp_game['minutes_played'] = col.text.encode("utf8")
+                elif i == 10:
+                    temp_game['field_goals_made'] = int_transform_except_none(col.text)
+                elif i == 11:
+                    temp_game['field_goals_att'] = int_transform_except_none(col.text)
+                elif i == 13:
+                    temp_game['three_made'] = int_transform_except_none(col.text)
+                elif i == 14:
+                    temp_game['three_att'] = int_transform_except_none(col.text)
+                elif i == 16:
+                    temp_game['free_throw_made'] = int_transform_except_none(col.text)
+                elif i == 17:
+                    temp_game['free_throw_att'] = int_transform_except_none(col.text)
+                elif i == 19:
+                    temp_game['offensive_rebound'] = int_transform_except_none(col.text)
+                elif i == 20:
+                    temp_game['defensive_rebound'] = int_transform_except_none(col.text)
+                elif i == 21:
+                    temp_game['total_rebound'] = int_transform_except_none(col.text)
+                elif i == 22:
+                    temp_game['assist'] = int_transform_except_none(col.text)
+                elif i == 23:
+                    temp_game['steal'] = int_transform_except_none(col.text)
+                elif i == 24:
+                    temp_game['block'] = int_transform_except_none(col.text)
+                elif i == 25:
+                    temp_game['turnover'] = int_transform_except_none(col.text)
+                elif i == 26:
+                    temp_game['personal_fouls'] = int_transform_except_none(col.text)
+                elif i == 27:
+                    temp_game['points'] = int_transform_except_none(col.text)
+
+                player_season_list.append(temp_game)
+
+    return(player_season_list)
+
+
+def main():
+    asciilist = range(97, 120)
+    for i in range(121, 123):
+        asciilist.append(i)
+
+    ln_list = []
+    for i in asciilist:
+        ln_list.append(str(unichr(i)))
+
+    start_time = epoch_time()
+
+    for ln in ln_list:
+        this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
+        print "Finished parsing Player List for Last Names staring with {0}".format(ln)
+
+        for pl in this_player_list:
+            this_player = fetch_parse(datatype="player", player=pl)
+            print "Finished parsing Player {0}".format(this_player.name)
+            for season in this_player.seasons:
+                fetch_parse(datatype="player_season", player=this_player.page_url, season=season)
+                end_time = epoch_time()
+                gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
+                print gen_text.format(season, this_player.name, (end_time-start_time)/60)
+
 
 if __name__ == "__main__":
-    plist = fetch_parse(datatype="playerlist", playerlist_lastname="a")
-
-    pl1 = fetch_parse(datatype="player", player=plist[0])
-
-    pl_s = fetch("player_season", player=pl1.page_url, season=pl1.seasons[0])
-
-    print pl_s
+    main()
