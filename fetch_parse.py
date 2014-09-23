@@ -472,7 +472,7 @@ def player_season_job_creator(player, start_time):
     gamelist = []
     for season in player.seasons:
         gamelist.append(fetch_parse(datatype="player_season", player=player.page_url, season=season))
-    print "Finished Season {0} Player {1}".format(season, player.name)
+        print "Finished Season {0} Player {1}".format(season, player.name)
 
     return gamelist
 
@@ -493,8 +493,8 @@ def log_player_season(result):
 
 def mp_main():
     # Set ASCII list for all last names
-    asciilist = range(97, 120)
-    for i in range(121, 123):
+    asciilist = range(119, 120)
+    for i in range(121, 121):
         asciilist.append(i)
 
     ln_list = []
@@ -511,15 +511,35 @@ def mp_main():
 
     pool.close()
     pool.join()
+    pool.terminate()
     # Finish Multiprocessing for Player Lists
 
     # Start Multiprocessing for Players
     pool = Pool()
-    for i in glob_plist:
+    for i in glob_plist[0:3]:
         pool.apply_async(player_job_creator, args=(i, start_time), callback=log_player)
 
     pool.close()
     pool.join()
+    pool.terminate()
+
+
+    print glob_player[2].name
+    print glob_player[2].seasons
+    # Finish Multiprocessing for Players
+
+    # Start Multiprocessing for Player-Seasons
+    pool = Pool()
+    for i in glob_player[0:4]:
+        pool.apply_async(player_season_job_creator, args=(i, start_time), callback=log_player_season)
+
+    pool.close()
+    pool.join()
+    pool.terminate()
+
+    # Finish Multiprocessing for Player-Seasons
+
+    print "RUN TIME {0}".format((time.time()-start_time)/60)
 
 
 def test():
