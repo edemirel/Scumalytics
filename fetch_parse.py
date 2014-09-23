@@ -1,6 +1,6 @@
 # [SublimeLinter flake8-max-line-length:135]
 from bs4 import BeautifulSoup
-import multiprocessing
+from multiprocessing import Pool
 import urllib2
 import re
 import copy
@@ -16,7 +16,6 @@ parser = 'html.parser'
 
 start_year = 1982
 
-epoch_time = time.time
 glob_plist = []
 glob_player = []
 glob_player_season = []
@@ -437,7 +436,7 @@ def all_main():
     for i in asciilist:
         ln_list.append(str(unichr(i)))
 
-    start_time = epoch_time()
+    start_time = time.time()
 
     for ln in ln_list:
         this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
@@ -448,23 +447,20 @@ def all_main():
             print "Finished parsing Player {0}".format(this_player.name)
             for season in this_player.seasons:
                 fetch_parse(datatype="player_season", player=this_player.page_url, season=season)
-                end_time = epoch_time()
+                end_time = time.time()
                 gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
                 print gen_text.format(season, this_player.name, (end_time-start_time)/60)
 
 
 def plist_job_creator(ln, start_time):
     this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
-    end_time = epoch_time()
-    print "Finished PList for {0}. Running for {2:.2f} min".format(ln, (end_time-start_time)/60)
-    glob_plist.append(this_player_list)
+    print "Finished PList {0}".format(ln)
     return this_player_list
 
 
 def player_job_creator(pl, start_time):
     this_player = fetch_parse(datatype="player", player=pl)
-    end_time = epoch_time()
-    print "Finished parsing Player {0}. Running for {2:.2f} min".format(this_player.name, (end_time-start_time)/60)
+    print "Finished parsing Player {0}".format(this_player.name)
     return this_player
 
 
@@ -472,11 +468,26 @@ def player_season_job_creator(player, start_time):
     gamelist = []
     for season in player.seasons:
         gamelist.append(fetch_parse(datatype="player_season", player=player.page_url, season=season))
-    end_time = epoch_time()
+    end_time = time.time()
     gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
     print gen_text.format(season, player.name, (end_time-start_time)/60)
 
     return gamelist
+
+
+def log_plist(result):
+    for i in result:
+        glob_plist.append(i)
+
+
+def log_player(result):
+    for i in result:
+        glob_player.append(i)
+
+
+def log_player_season(result):
+    for i in result:
+        glob_player_season.append(i)
 
 
 def mp_main():
@@ -485,23 +496,23 @@ def mp_main():
         asciilist.append(i)
 
     ln_list = []
-    start_time = epoch_time()
+    start_time = time.time()
 
     for i in asciilist:
         ln_list.append(str(unichr(i)))
 
     print "starting mp"
-    pool = multiprocessing.Pool()
+    pool = Pool(4)
 
     for i in ln_list:
-        pool.apply_async(plist_job_creator, args=(i, start_time))
-
-    print "ending mp"
+        pool.apply_async(plist_job_creator, args=(i, start_time), callback=log_plist)
 
     pool.close()
     pool.join()
 
-    print glob_plist
+    print "ending mp"
+
+    print len(glob_plist)
 
 
 def test_main():
