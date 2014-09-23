@@ -20,46 +20,15 @@ glob_plist = []
 glob_player = []
 glob_player_season = []
 
-
-def pos_to_num(poslist):
-    num_pos = []
-    for pos in poslist:
-        if pos == "Center":
-            num_pos.append(5)
-        elif pos == "Power Forward":
-            num_pos.append(4)
-        elif pos == "Small Forward":
-            num_pos.append(3)
-        elif pos == "Shooting Guard":
-            num_pos.append(2)
-        elif pos == "Point Guard":
-            num_pos.append(1)
-        else:
-            pass
-            # Never should hit here honestly
-
-    return num_pos
+positions = {'Center':5, 'Power Forward': 4, 'Small Forward': 3, 'Shooting Guard': 2, 'Point Guard': 1}
+num_to_position = {v: k for k, v in positions.items()}
 
 
-def num_to_pos(poslist):
-    pos_num = []
-    for pos in poslist:
-        if pos == 5:
-            pos_num.append("Center")
-        elif pos == 4:
-            pos_num.append("Power Forward")
-        elif pos == 3:
-            pos_num.append("Small Forward")
-        elif pos == 2:
-            pos_num.append("Shooting Guard")
-        elif pos == 1:
-            pos_num.append("Point Guard")
-        else:
-            pass
-            # Never should hit here honestly
+def pos_to_num(input_pos):
+        return [num_to_pos[p] for p in input_pos]
 
-    return pos_num
-
+def num_to_pos(input_pos):
+        return [num_to_position[p] for p in input_pos]
 
 def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
     """ fetch_parse calls fetch and parse functions consecutively
@@ -201,7 +170,10 @@ def parse(datatype, soup, url=None):
 def parse_playerlist(soup, yearfrom=start_year):
     """ Returns a playerlist as URLs from a given playerlist soup"""
     # Search for all "a" tags, get href attributes
-    table_container = soup.find("table", id="players").find("tbody")
+    try:
+        table_container = soup.find("table", id="players").find("tbody")
+    except AttributeError:
+        raise e
 
     # num_of_columns = len(table_container.find("tr").find_all("td"))
     playerlist = []
@@ -493,11 +465,8 @@ def log_player_season(result):
 
 def mp_main():
     # Set ASCII list for all last names
-    asciilist = range(119, 120)
-    for i in range(121, 121):
-        asciilist.append(i)
+    ln_list = string.ascii_lowercase
 
-    ln_list = []
     start_time = time.time()
 
     for i in asciilist:
@@ -539,15 +508,14 @@ def mp_main():
 
     # Finish Multiprocessing for Player-Seasons
 
-    print "RUN TIME {0}".format((time.time()-start_time)/60)
+    print "RUN TIME {0:.2f}".format((time.time()-start_time)/60)
 
 
 def test():
-    this_player = fetch_parse(datatype="player", player="bagarda01")
-    print this_player.birthcountry
+    t = fetch_playerlist('x')
+    a = parse_playerlist(t[0])
 
-    # gen_text.format(season, this_player.name, (end_time-start_time)/60)
-
+    print a
 
 if __name__ == "__main__":
-    mp_main()
+    test()
