@@ -427,8 +427,8 @@ def parse_player_season(soup, url=None):
     return player_season_list
 
 
-def all_main():
-    asciilist = range(98, 120)
+def linear_main():
+    asciilist = range(97, 120)
     for i in range(121, 123):
         asciilist.append(i)
 
@@ -441,20 +441,24 @@ def all_main():
     for ln in ln_list:
         this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
         print "Finished parsing Player List for Last Names staring with {0}".format(ln)
+        for p in this_player_list:
+            glob_plist.append(p)
 
-        for pl in this_player_list:
-            this_player = fetch_parse(datatype="player", player=pl)
-            print "Finished parsing Player {0}".format(this_player.name)
-            for season in this_player.seasons:
-                fetch_parse(datatype="player_season", player=this_player.page_url, season=season)
-                end_time = time.time()
-                gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
-                print gen_text.format(season, this_player.name, (end_time-start_time)/60)
+        # for pl in this_player_list:
+        #     this_player = fetch_parse(datatype="player", player=pl)
+        #     print "Finished parsing Player {0}".format(this_player.name)
+        #     for season in this_player.seasons:
+        #         fetch_parse(datatype="player_season", player=this_player.page_url, season=season)
+        #         end_time = time.time()
+        #         gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
+        #         print gen_text.format(season, this_player.name, (end_time-start_time)/60)
+
+    print len(glob_plist)
 
 
 def plist_job_creator(ln, start_time):
     this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
-    print "Finished PList {0}".format(ln)
+    print "Finished PList {0} Length {1}".format(ln, len(this_player_list))
     return this_player_list
 
 
@@ -468,9 +472,7 @@ def player_season_job_creator(player, start_time):
     gamelist = []
     for season in player.seasons:
         gamelist.append(fetch_parse(datatype="player_season", player=player.page_url, season=season))
-    end_time = time.time()
-    gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
-    print gen_text.format(season, player.name, (end_time-start_time)/60)
+    print "Finished Season {0} Player {1}".format(season, player.name)
 
     return gamelist
 
@@ -481,8 +483,7 @@ def log_plist(result):
 
 
 def log_player(result):
-    for i in result:
-        glob_player.append(i)
+    glob_player.append(result)
 
 
 def log_player_season(result):
@@ -491,6 +492,7 @@ def log_player_season(result):
 
 
 def mp_main():
+    # Set ASCII list for all last names
     asciilist = range(97, 120)
     for i in range(121, 123):
         asciilist.append(i)
@@ -501,21 +503,26 @@ def mp_main():
     for i in asciilist:
         ln_list.append(str(unichr(i)))
 
-    print "starting mp"
-    pool = Pool(4)
+    # Start Multiprocessing for Player Lists
+    pool = Pool()
 
     for i in ln_list:
         pool.apply_async(plist_job_creator, args=(i, start_time), callback=log_plist)
 
     pool.close()
     pool.join()
+    # Finish Multiprocessing for Player Lists
 
-    print "ending mp"
+    # Start Multiprocessing for Players
+    pool = Pool()
+    for i in glob_plist:
+        pool.apply_async(player_job_creator, args=(i, start_time), callback=log_player)
 
-    print len(glob_plist)
+    pool.close()
+    pool.join()
 
 
-def test_main():
+def test():
     this_player = fetch_parse(datatype="player", player="bagarda01")
     print this_player.birthcountry
 

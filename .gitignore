@@ -219,3 +219,5 @@ pip-log.txt
 
 #Personal
 /test/
+fetch_parse_mp_working.*
+
