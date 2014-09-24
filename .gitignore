@@ -219,5 +219,7 @@ pip-log.txt
 
 #Personal
 /test/
+/output/
 fetch_parse_mp_working.*
+definitions.*
 

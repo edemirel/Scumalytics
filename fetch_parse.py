@@ -8,7 +8,6 @@ import copy
 import time
 import csv
 
-from definitions import Player
 
 BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players'
@@ -98,14 +97,10 @@ def parse_playerlist(soup, yearfrom=start_year):
     return playerlist
 
 
-def parse_player(soup, url=None):
+def parse_player(soup, url):
 
     # INIT DATAPOINTS AS BLANK, THIS IS TO PREVENT ERRORS IF THE PARSE DOESNT HAPPEN
-    tempplayer = {'name': None, 'img_url': None, 'pos': None, 'shoots': None,
-                  'height': None, 'weight': None, 'birthday': None, 'birthcity': None,
-                  'birthcountry': None, 'college': None, 'draftcity': None,
-                  'draftteam': None, 'draftround': None, 'draftroundpick': None,
-                  'draftpos': None, 'page_url': url, 'seasons': []}
+    tempplayer = {'page_url': url}
 
     infobox = soup.find("div", id="info_box")
 
@@ -206,26 +201,18 @@ def parse_player(soup, url=None):
 
     tempplayer['seasons'] = seasonlist
 
-    tmp = Player(**tempplayer)
-
-    return tmp
+    return tempplayer
 
 
-def parse_player_season(soup):
+def parse_player_season(player, soup):
     player_season_list = []
-    temp_game_org = {'game_num': None, 'player_game_num': None, 'game_date': None, 'age_year': None,
-                     'team': None, 'is_away': None, 'opponent': None, 'started': None, 'is_playoff': None,
-                     'age_days': None,  'is_win': None, 'point_differential': None,
-                     'minutes_played': None, 'field_goals_made': None, 'field_goals_att': None, 'three_made': None,
-                     'three_att': None, 'free_throw_made': None, 'free_throw_att': None, 'offensive_rebound': None,
-                     'defensive_rebound': None, 'total_rebound': None, 'assist': None, 'steal': None,
-                     'block': None, 'turnover': None, 'personal_fouls': None, 'points': None}
+    temp_game = {'player': player['name']}
 
     season_gametable = soup.find("table", id="pgl_basic").find("tbody")
-    temp_game_org['is_playoff'] = 0
+
+    temp_game['is_playoff'] = 0
 
     for row in season_gametable.find_all("tr"):
-        temp_game = copy.deepcopy(temp_game_org)
         # Check if it's a replicate of the header row or DNP/Inactive Row
         # DNP Rows has 9
 
@@ -298,7 +285,10 @@ def parse_player_season(soup):
                 elif i == 27:
                     temp_game['points'] = maybe_int(col.text)
 
-                player_season_list.append(temp_game)
+            player_season_list.append(copy.deepcopy(temp_game))
+            for key in temp_game.keys():
+                if (key != 'player' and key != 'is_playoff'):
+                    temp_game[key] = None
 
     return player_season_list
 
@@ -313,49 +303,49 @@ def maybe_int(value):
 
 def linear_main():
     start_time = time.time()
-    ln_list = ascii_lowercase[0:1]
+    last_names_list = ascii_lowercase
 
-    for ln in ln_list:
+    for ln in last_names_list:
         this_player_list = parse_playerlist(fetch_playerlist(playerlist_lastname=ln)[0])
         print "Finished PList {0} Length {1}".format(ln, len(this_player_list))
         glob_plist.extend(this_player_list)
 
-        for pl in glob_plist[0:5]:
+        for pl in glob_plist:
             fetch_result = fetch_player(player=pl)
             this_player = parse_player(soup=fetch_result[0], url=fetch_result[1])
             glob_player.append(this_player)
-            print "Finished parsing Player {0}".format(this_player.name)
-            for season in this_player.seasons:
-                soup, fetched_url = fetch_player_season(this_player.page_url, season)
-                glob_player_season.extend(parse_player_season(soup=soup))
+            print "Finished parsing Player {0}".format(this_player['name'])
+            for season in this_player['seasons']:
+                soup, fetched_url = fetch_player_season(this_player['page_url'], season)
+                glob_player_season.extend(parse_player_season(player=this_player, soup=soup))
                 end_time = time.time()
                 gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
-                print gen_text.format(season, this_player.name, (end_time-start_time)/60)
+                print gen_text.format(season, this_player['name'], (end_time-start_time)/60)
 
-    print glob_plist
-    print glob_player
-    print glob_player_season
+    dump_games_to_csv(glob_player_season)
+
+    print "RUN TIME {0:.2f}".format((time.time()-start_time)/60)
 
 
-def plist_job_creator(ln, start_time):
+def plist_job_creator(ln):
     this_player_list = parse_playerlist(fetch_playerlist(playerlist_lastname=ln)[0])
     print "Finished PList {0} Length {1}".format(ln, len(this_player_list))
     return this_player_list
 
 
-def player_job_creator(pl, start_time):
+def player_job_creator(pl):
     fetch_result = fetch_player(player=pl)
     this_player = parse_player(soup=fetch_result[0], url=fetch_result[1])
-    print "Finished parsing Player {0}".format(this_player.name)
+    print "Finished parsing Player {0}".format(this_player['name'])
     return this_player
 
 
-def player_season_job_creator(player, start_time):
+def player_season_job_creator(player):
     gamelist = []
-    for season in player.seasons:
-        soup, fetched_url = fetch_player_season(player.page_url, season)
-        gamelist.extend(parse_player_season(soup=soup))
-        print "Finished Season {0} Player {1}".format(season, player.name)
+    for season in player['seasons']:
+        soup, fetched_url = fetch_player_season(player['page_url'], season)
+        gamelist.extend(parse_player_season(player=player, soup=soup))
+        print "Finished Season {0} Player {1}".format(season, player['name'])
 
     return gamelist
 
@@ -373,23 +363,24 @@ def log_player_season(result):
 
 
 def dump_games_to_csv(all_games):
-    writer = csv.writer(open('dict.csv', 'wb'))
-    for game in all_games:
-        for key, value in game.items():
-            writer.writerow([key, value])
+    f = open('output/time_{0}.csv'.format(int(time.time())), 'wb')
+    writer = csv.writer(f)
+    writer.writerow(all_games[0].keys())
+    for i in all_games:
+        writer.writerow(i.values())
 
 
 def mp_main():
     # Set ASCII list for all last names
-    ln_list = ascii_lowercase[0:1]
+    last_names_list = ascii_lowercase
 
     start_time = time.time()
 
     # Start Multiprocessing for Player Lists
     pool = Pool()
 
-    for i in ln_list:
-        pool.apply_async(plist_job_creator, args=(i, start_time), callback=log_plist)
+    for i in last_names_list:
+        pool.apply_async(plist_job_creator, args=(i,), callback=log_plist)
 
     pool.close()
     pool.join()
@@ -398,8 +389,8 @@ def mp_main():
 
     # Start Multiprocessing for Players
     pool = Pool()
-    for i in glob_plist[0:2]:
-        pool.apply_async(player_job_creator, args=(i, start_time), callback=log_player)
+    for i in glob_plist:
+        pool.apply_async(player_job_creator, args=(i,), callback=log_player)
 
     pool.close()
     pool.join()
@@ -410,17 +401,13 @@ def mp_main():
     # Start Multiprocessing for Player-Seasons
     pool = Pool()
     for i in glob_player:
-        pool.apply_async(player_season_job_creator, args=(i, start_time), callback=log_player_season)
+        pool.apply_async(player_season_job_creator, args=(i,), callback=log_player_season)
 
     pool.close()
     pool.join()
     pool.terminate()
 
     # Finish Multiprocessing for Player-Seasons
-
-    print len(glob_player_season)
-
-    dump_games_to_csv(glob_player_season)
 
     print "RUN TIME {0:.2f}".format((time.time()-start_time)/60)
 
@@ -433,3 +420,4 @@ def test():
 
 if __name__ == "__main__":
     mp_main()
+    dump_games_to_csv(glob_player_season)
