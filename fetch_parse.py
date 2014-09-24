@@ -1,10 +1,12 @@
 # [SublimeLinter flake8-max-line-length:135]
 from bs4 import BeautifulSoup
 from multiprocessing import Pool
+from string import ascii_lowercase
 import urllib2
 import re
 import copy
 import time
+import csv
 
 from definitions import Player
 
@@ -20,71 +22,16 @@ glob_plist = []
 glob_player = []
 glob_player_season = []
 
-positions = {'Center':5, 'Power Forward': 4, 'Small Forward': 3, 'Shooting Guard': 2, 'Point Guard': 1}
+positions = {'Center': 5, 'Power Forward': 4, 'Small Forward': 3, 'Shooting Guard': 2, 'Point Guard': 1}
 num_to_position = {v: k for k, v in positions.items()}
 
 
 def pos_to_num(input_pos):
-        return [num_to_pos[p] for p in input_pos]
+        return [positions[p] for p in input_pos]
+
 
 def num_to_pos(input_pos):
         return [num_to_position[p] for p in input_pos]
-
-def fetch_parse(datatype, playerlist_lastname=None, player=None, season=None):
-    """ fetch_parse calls fetch and parse functions consecutively
-        datatype can be one of three; playerlist, player, player_season
-
-        * playerlist gets a list of players w/ given first letter of surname
-        * player gets the basic player info and season data
-        * player season gets all the games played for the player in a given season
-
-        example playerlist page http://www.basketball-reference.com/players/a/
-            Uses playerlist_lastname argument
-
-        example player page http://www.basketball-reference.com/players/a/abdelal01.html
-            Uses player argument
-            Can be passed in three styles
-            * /players/a/abdelal01.html
-            * abdelal01.html
-            * abdelal01
-
-        example player_season page http://www.basketball-reference.com/players/a/abdelal01/gamelog/1991/
-            Uses player and season arguments
-    """
-    defined_datatypes = ['playerlist', 'player', 'player_season']
-
-    # Checking if the fetchtype passed is proper
-    if datatype not in defined_datatypes:
-        raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
-
-    fetch_result = fetch(datatype, playerlist_lastname=playerlist_lastname, player=player, season=season)
-    r_arg = parse(datatype, soup=fetch_result[0], url=fetch_result[1])
-
-    return r_arg
-
-
-def fetch(fetchtype, playerlist_lastname=None, player=None, season=None):
-    """ fetch gets the page and readies the soup for data in the specified level
-        fetchtype can be one of three, playerlist, player, player_season
-
-        Check fetch_parse function for more details
-    """
-
-    defined_fetchtypes = ['playerlist', 'player', 'player_season']
-
-    if fetchtype == defined_fetchtypes[0]:
-        return fetch_playerlist(playerlist_lastname=playerlist_lastname)
-
-    elif fetchtype == defined_fetchtypes[1]:
-        return fetch_player(player=player)
-
-    elif fetchtype == defined_fetchtypes[2]:
-        return fetch_player_season(player=player, season=season)
-
-    else:
-        raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
-
-        # should never hit here normally
 
 
 def fetch_playerlist(playerlist_lastname):
@@ -99,21 +46,8 @@ def fetch_playerlist(playerlist_lastname):
 
 def fetch_player(player):
     # Checking if direct url or playercode is passed
-    # Case /players/a/abdelal01.html
-    if len(player.split("/")) == 4:
-        fetch_url = "".join([BR_ROOT, player, ""])
 
-    # Case abdelal01.html
-    elif len(player.split(".")) == 2:
-        fetch_url = "/".join([BR_PLAYERS, player[0], player])
-
-    # Case http://www.basketball-reference.com/players/a/abdulta01.html
-    elif len(player.split("/")) == 6:
-        fetch_url = player
-
-    # Case abdelal01
-    else:
-        fetch_url = "/".join([BR_PLAYERS, player[0], ".".join([player, "html"])])
+    fetch_url = "/".join([BR_PLAYERS, player[0], ".".join([player, "html"])])
 
     soup = BeautifulSoup(urllib2.urlopen(fetch_url).read(), parser)
 
@@ -146,42 +80,20 @@ def fetch_player_season(player, season):
     return soup, fetch_url
 
 
-def parse(datatype, soup, url=None):
-    """ parse gets the soup and returns data in the specified level
-        fetchtype can be one of three, playerlist, player, player_season
-
-        Check fetch_parse function for more details
-    """
-    defined_datatypes = ['playerlist', 'player', 'player_season']
-
-    if datatype == defined_datatypes[0]:
-        return parse_playerlist(soup)
-
-    elif datatype == defined_datatypes[1]:
-        return parse_player(soup, url)
-
-    elif datatype == defined_datatypes[2]:
-        return parse_player_season(soup, url)
-
-    else:
-        raise Exception('The type you have used is not defined\n Please use playerlist, player or player_season')
-
-
 def parse_playerlist(soup, yearfrom=start_year):
     """ Returns a playerlist as URLs from a given playerlist soup"""
     # Search for all "a" tags, get href attributes
     try:
         table_container = soup.find("table", id="players").find("tbody")
     except AttributeError:
-        raise e
+        return None
 
-    # num_of_columns = len(table_container.find("tr").find_all("td"))
     playerlist = []
 
     for row in table_container.find_all("tr"):
         t = row.find_all("td")
         if int(t[1].text) >= yearfrom:
-            playerlist.append(t[0].a["href"].encode("utf8"))
+            playerlist.append(t[0].a["href"].encode("utf8").split("/")[3].split(".")[0])
 
     return playerlist
 
@@ -299,15 +211,7 @@ def parse_player(soup, url=None):
     return tmp
 
 
-def int_transform_except_none(value):
-    try:
-        r = int(value)
-    except ValueError:
-        r = None
-    return r
-
-
-def parse_player_season(soup, url=None):
+def parse_player_season(soup):
     player_season_list = []
     temp_game_org = {'game_num': None, 'player_game_num': None, 'game_date': None, 'age_year': None,
                      'team': None, 'is_away': None, 'opponent': None, 'started': None, 'is_playoff': None,
@@ -334,15 +238,15 @@ def parse_player_season(soup, url=None):
             for i, col in enumerate(all_columns_in_row):
 
                 if i == 0:
-                    temp_game['game_num'] = int_transform_except_none(col.text)
+                    temp_game['game_num'] = maybe_int(col.text)
 
                 elif i == 1:
-                    temp_game['player_game_num'] = int_transform_except_none(col.text)
+                    temp_game['player_game_num'] = maybe_int(col.text)
                 elif i == 2:
                     temp_game['game_date'] = col.text.encode("utf8")
                 elif i == 3:
-                    temp_game['age_year'] = int_transform_except_none(col.text.split("-")[0])
-                    temp_game['age_days'] = int_transform_except_none(col.text.split("-")[1])
+                    temp_game['age_year'] = maybe_int(col.text.split("-")[0])
+                    temp_game['age_days'] = maybe_int(col.text.split("-")[1])
                 elif i == 4:
                     temp_game['team'] = col.text.encode("utf8")
                 elif i == 5:
@@ -358,84 +262,90 @@ def parse_player_season(soup, url=None):
                         temp_game['is_win'] = 1
                     else:
                         temp_game['is_win'] = 0
-                    temp_game['point_differential'] = int_transform_except_none(temp_text.split(" ")[1].split("(")[1].split(")")[0])
+                    temp_game['point_differential'] = maybe_int(temp_text.split(" ")[1].split("(")[1].split(")")[0])
                 elif i == 8:
-                    temp_game['started'] = int_transform_except_none(col.text)
+                    temp_game['started'] = maybe_int(col.text)
                 elif i == 9:
                     temp_game['minutes_played'] = col.text.encode("utf8")
                 elif i == 10:
-                    temp_game['field_goals_made'] = int_transform_except_none(col.text)
+                    temp_game['field_goals_made'] = maybe_int(col.text)
                 elif i == 11:
-                    temp_game['field_goals_att'] = int_transform_except_none(col.text)
+                    temp_game['field_goals_att'] = maybe_int(col.text)
                 elif i == 13:
-                    temp_game['three_made'] = int_transform_except_none(col.text)
+                    temp_game['three_made'] = maybe_int(col.text)
                 elif i == 14:
-                    temp_game['three_att'] = int_transform_except_none(col.text)
+                    temp_game['three_att'] = maybe_int(col.text)
                 elif i == 16:
-                    temp_game['free_throw_made'] = int_transform_except_none(col.text)
+                    temp_game['free_throw_made'] = maybe_int(col.text)
                 elif i == 17:
-                    temp_game['free_throw_att'] = int_transform_except_none(col.text)
+                    temp_game['free_throw_att'] = maybe_int(col.text)
                 elif i == 19:
-                    temp_game['offensive_rebound'] = int_transform_except_none(col.text)
+                    temp_game['offensive_rebound'] = maybe_int(col.text)
                 elif i == 20:
-                    temp_game['defensive_rebound'] = int_transform_except_none(col.text)
+                    temp_game['defensive_rebound'] = maybe_int(col.text)
                 elif i == 21:
-                    temp_game['total_rebound'] = int_transform_except_none(col.text)
+                    temp_game['total_rebound'] = maybe_int(col.text)
                 elif i == 22:
-                    temp_game['assist'] = int_transform_except_none(col.text)
+                    temp_game['assist'] = maybe_int(col.text)
                 elif i == 23:
-                    temp_game['steal'] = int_transform_except_none(col.text)
+                    temp_game['steal'] = maybe_int(col.text)
                 elif i == 24:
-                    temp_game['block'] = int_transform_except_none(col.text)
+                    temp_game['block'] = maybe_int(col.text)
                 elif i == 25:
-                    temp_game['turnover'] = int_transform_except_none(col.text)
+                    temp_game['turnover'] = maybe_int(col.text)
                 elif i == 26:
-                    temp_game['personal_fouls'] = int_transform_except_none(col.text)
+                    temp_game['personal_fouls'] = maybe_int(col.text)
                 elif i == 27:
-                    temp_game['points'] = int_transform_except_none(col.text)
+                    temp_game['points'] = maybe_int(col.text)
 
                 player_season_list.append(temp_game)
 
     return player_season_list
 
 
+def maybe_int(value):
+    try:
+        r = int(value)
+    except ValueError:
+        r = None
+    return r
+
+
 def linear_main():
-    asciilist = range(97, 120)
-    for i in range(121, 123):
-        asciilist.append(i)
-
-    ln_list = []
-    for i in asciilist:
-        ln_list.append(str(unichr(i)))
-
     start_time = time.time()
+    ln_list = ascii_lowercase[0:1]
 
     for ln in ln_list:
-        this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
-        print "Finished parsing Player List for Last Names staring with {0}".format(ln)
-        for p in this_player_list:
-            glob_plist.append(p)
+        this_player_list = parse_playerlist(fetch_playerlist(playerlist_lastname=ln)[0])
+        print "Finished PList {0} Length {1}".format(ln, len(this_player_list))
+        glob_plist.extend(this_player_list)
 
-        # for pl in this_player_list:
-        #     this_player = fetch_parse(datatype="player", player=pl)
-        #     print "Finished parsing Player {0}".format(this_player.name)
-        #     for season in this_player.seasons:
-        #         fetch_parse(datatype="player_season", player=this_player.page_url, season=season)
-        #         end_time = time.time()
-        #         gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
-        #         print gen_text.format(season, this_player.name, (end_time-start_time)/60)
+        for pl in glob_plist[0:5]:
+            fetch_result = fetch_player(player=pl)
+            this_player = parse_player(soup=fetch_result[0], url=fetch_result[1])
+            glob_player.append(this_player)
+            print "Finished parsing Player {0}".format(this_player.name)
+            for season in this_player.seasons:
+                soup, fetched_url = fetch_player_season(this_player.page_url, season)
+                glob_player_season.extend(parse_player_season(soup=soup))
+                end_time = time.time()
+                gen_text = "Finished Season {0} Player {1}. Running for {2:.2f} min"
+                print gen_text.format(season, this_player.name, (end_time-start_time)/60)
 
-    print len(glob_plist)
+    print glob_plist
+    print glob_player
+    print glob_player_season
 
 
 def plist_job_creator(ln, start_time):
-    this_player_list = fetch_parse(datatype="playerlist", playerlist_lastname=ln)
+    this_player_list = parse_playerlist(fetch_playerlist(playerlist_lastname=ln)[0])
     print "Finished PList {0} Length {1}".format(ln, len(this_player_list))
     return this_player_list
 
 
 def player_job_creator(pl, start_time):
-    this_player = fetch_parse(datatype="player", player=pl)
+    fetch_result = fetch_player(player=pl)
+    this_player = parse_player(soup=fetch_result[0], url=fetch_result[1])
     print "Finished parsing Player {0}".format(this_player.name)
     return this_player
 
@@ -443,15 +353,15 @@ def player_job_creator(pl, start_time):
 def player_season_job_creator(player, start_time):
     gamelist = []
     for season in player.seasons:
-        gamelist.append(fetch_parse(datatype="player_season", player=player.page_url, season=season))
+        soup, fetched_url = fetch_player_season(player.page_url, season)
+        gamelist.extend(parse_player_season(soup=soup))
         print "Finished Season {0} Player {1}".format(season, player.name)
 
     return gamelist
 
 
 def log_plist(result):
-    for i in result:
-        glob_plist.append(i)
+    glob_plist.extend(result)
 
 
 def log_player(result):
@@ -459,18 +369,21 @@ def log_player(result):
 
 
 def log_player_season(result):
-    for i in result:
-        glob_player_season.append(i)
+    glob_player_season.extend(result)
+
+
+def dump_games_to_csv(all_games):
+    writer = csv.writer(open('dict.csv', 'wb'))
+    for game in all_games:
+        for key, value in game.items():
+            writer.writerow([key, value])
 
 
 def mp_main():
     # Set ASCII list for all last names
-    ln_list = string.ascii_lowercase
+    ln_list = ascii_lowercase[0:1]
 
     start_time = time.time()
-
-    for i in asciilist:
-        ln_list.append(str(unichr(i)))
 
     # Start Multiprocessing for Player Lists
     pool = Pool()
@@ -485,21 +398,18 @@ def mp_main():
 
     # Start Multiprocessing for Players
     pool = Pool()
-    for i in glob_plist[0:3]:
+    for i in glob_plist[0:2]:
         pool.apply_async(player_job_creator, args=(i, start_time), callback=log_player)
 
     pool.close()
     pool.join()
     pool.terminate()
 
-
-    print glob_player[2].name
-    print glob_player[2].seasons
     # Finish Multiprocessing for Players
 
     # Start Multiprocessing for Player-Seasons
     pool = Pool()
-    for i in glob_player[0:4]:
+    for i in glob_player:
         pool.apply_async(player_season_job_creator, args=(i, start_time), callback=log_player_season)
 
     pool.close()
@@ -507,6 +417,10 @@ def mp_main():
     pool.terminate()
 
     # Finish Multiprocessing for Player-Seasons
+
+    print len(glob_player_season)
+
+    dump_games_to_csv(glob_player_season)
 
     print "RUN TIME {0:.2f}".format((time.time()-start_time)/60)
 
@@ -518,4 +432,4 @@ def test():
     print a
 
 if __name__ == "__main__":
-    test()
+    mp_main()
