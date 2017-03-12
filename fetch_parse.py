@@ -8,9 +8,51 @@ import copy
 import time
 import csv
 import logging
+from logging import handlers
 import pdb
 import httplib
 import socket
+
+class TLSSMTPHandler(handlers.SMTPHandler):
+    def emit(self, record):
+        """
+        Emit a record.
+ 
+        Format the record and send it to the specified addressees.
+        """
+        try:
+            import smtplib
+            import string # for tls add this line
+            try:
+                from email.utils import formatdate
+            except ImportError:
+                formatdate = self.date_time
+            port = self.mailport
+            if not port:
+                port = smtplib.SMTP_PORT
+            smtp = smtplib.SMTP(self.mailhost, port)
+            msg = self.format(record)
+            msg = "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\n\r\n%s" % (
+                            self.fromaddr,
+                            string.join(self.toaddrs, ","),
+                            self.getSubject(record),
+                            formatdate(), msg)
+            if self.username:
+                smtp.ehlo() # for tls add this line
+                smtp.starttls() # for tls add this line
+                smtp.ehlo() # for tls add this line
+                smtp.login(self.username, self.password)
+            smtp.sendmail(self.fromaddr, self.toaddrs, msg)
+            smtp.quit()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
+MAILHOST = ("smtp.gmail.com", 587)
+FROM     = 'egedemirel@gmail.com'
+TO       = ['egedemirel@gmail.com']
+SUBJECT  = 'Test Logging email from Python logging module (scumalytics)'
 
 thisLogger = logging.getLogger("scumalytics")
 thisLogger.level=logging.DEBUG
@@ -19,12 +61,14 @@ formatting = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messa
 
 fh = logging.FileHandler('scumalytics.log')
 sh = logging.StreamHandler()
+# eh = TLSSMTPHandler(MAILHOST, FROM, TO, SUBJECT, ('asd@dsa.com', 'geagohuhegoa'))
 
 fh.setFormatter(formatting)
 sh.setFormatter(formatting)
+# eh.setFormatter(formatting)
 thisLogger.addHandler(fh)
 thisLogger.addHandler(sh)
-
+# thisLogger.addHandler(eh)
 
 BR_ROOT = 'http://www.basketball-reference.com'
 BR_PLAYERS = 'http://www.basketball-reference.com/players/{lastname_firstletter}/{player_name}'
@@ -52,7 +96,7 @@ def num_to_pos(input_pos):
 
 def robot_delay_retry_function(func):
     def wrapper(*args, **kwargs):
-        time.sleep(1.5)
+        # time.sleep(1.5)
         didComplete = True
         while didComplete:
             try:
@@ -272,7 +316,7 @@ def linear_main():
     start_time = time.time()
     last_names_list = ascii_lowercase.replace('x', '')
 
-    for ln in last_names_list:
+    for ln in last_names_list[0:2]:
         thisLogger.debug("Fetching playerlist for last names starting with  ""{playerlist_lastname}""".format(playerlist_lastname=ln))
         player_list = fetch_playerlist(playerlist_lastname=ln)[0]
         thisLogger.debug("Parsing playerlist for last names starting with  ""{playerlist_lastname}""".format(playerlist_lastname=ln))
@@ -280,7 +324,7 @@ def linear_main():
         thisLogger.debug("Got playerlist \t""{0}"" \tContains {1}".format(ln.upper(), len(this_player_list)))
         glob_plist.extend(this_player_list)
 
-    for pl in glob_plist:
+    for pl in glob_plist[0:3]:
         thisLogger.debug("Fetching player {player}".format(player=pl))
         fetch_result = fetch_player(player=pl)
         thisLogger.debug("Parsing player {player}".format(player=pl))
@@ -400,5 +444,5 @@ def test():
 
 if __name__ == "__main__":
     linear_main()
-    # dump_games_to_csv(glob_player_season)
+    dump_games_to_csv(glob_player_season)
     # pass
